@@ -246,6 +246,8 @@ async function fetchPlaceCandidates(query) {
     wikipediaCandidates.length > 0 || osmCandidates.length > 0
       ? [...wikipediaCandidates, ...osmCandidates, ...relevantGsiCandidates]
       : gsiCandidates;
+  candidates.sort((a, b) => scorePlaceCandidate(query, b) - scorePlaceCandidate(query, a));
+
   const uniqueCandidates = [];
   const seen = new Set();
 
@@ -259,6 +261,28 @@ async function fetchPlaceCandidates(query) {
   });
 
   return uniqueCandidates.slice(0, 10);
+}
+
+function scorePlaceCandidate(query, candidate) {
+  const normalizedQuery = normalizeSearchText(query);
+  const normalizedTitle = normalizeSearchText(candidate.title);
+  let score = 0;
+
+  if (normalizedTitle === normalizedQuery) {
+    score += 100;
+  } else if (normalizedTitle.startsWith(normalizedQuery)) {
+    score += 70;
+  } else if (normalizedTitle.includes(normalizedQuery)) {
+    score += 50;
+  }
+
+  if (candidate.source === "Wikipedia") {
+    score += 8;
+  } else if (candidate.source === "OpenStreetMap") {
+    score += 5;
+  }
+
+  return score;
 }
 
 async function fetchWikipediaPlaceCandidates(query) {
