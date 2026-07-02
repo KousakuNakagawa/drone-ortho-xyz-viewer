@@ -221,6 +221,50 @@ button {
   background: var(--warning-bg);
 }
 
+.search-status {
+  min-height: 20px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.search-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.search-result-button {
+  width: 100%;
+  min-height: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: #fbfcfa;
+  font-weight: 600;
+  text-align: left;
+}
+
+.search-result-button:hover {
+  background: #eef5f2;
+}
+
+.search-result-title,
+.search-result-detail {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.search-result-detail {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .layer-list {
   display: grid;
   gap: 12px;
