@@ -21,6 +21,17 @@
           <p class="lead">XYZタイルURLを貼るだけの軽量オルソ画像ビューア</p>
         </header>
 
+        <section class="panel-section" aria-labelledby="search-title">
+          <h2 id="search-title">地名検索</h2>
+          <label class="field-label" for="place-search-input">地名・住所</label>
+          <input id="place-search-input" type="search" placeholder="例: 東京駅、宮崎大学" />
+          <button id="place-search-button" class="secondary-button" type="button">
+            検索
+          </button>
+          <div id="place-search-status" class="search-status" role="status" aria-live="polite"></div>
+          <div id="place-search-results" class="search-results"></div>
+        </section>
+
         <section class="panel-section" aria-labelledby="basemap-title">
           <h2 id="basemap-title">背景地図</h2>
           <label class="field-label" for="basemap-select">表示する背景</label>
