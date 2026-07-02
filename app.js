@@ -36,6 +36,10 @@ const BACKGROUND_SOURCES = {
 };
 
 const els = {
+  placeSearchInput: document.getElementById("place-search-input"),
+  placeSearchButton: document.getElementById("place-search-button"),
+  placeSearchStatus: document.getElementById("place-search-status"),
+  placeSearchResults: document.getElementById("place-search-results"),
   basemapSelect: document.getElementById("basemap-select"),
   xyzName: document.getElementById("xyz-name"),
   xyzUrl: document.getElementById("xyz-url"),
@@ -55,6 +59,7 @@ let activeBasemapId = "gsi-standard";
 let rasterLayerSequence = 1;
 let geojsonLayerSequence = 1;
 let popup;
+let placeSearchMarker;
 
 const rasterLayers = [];
 const geojsonLayers = [];
@@ -124,6 +129,17 @@ function buildStyle(basemapId) {
 }
 
 function bindUiEvents() {
+  els.placeSearchButton.addEventListener("click", () => {
+    searchPlaceByName();
+  });
+
+  els.placeSearchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchPlaceByName();
+    }
+  });
+
   els.basemapSelect.addEventListener("change", () => {
     activeBasemapId = els.basemapSelect.value;
     setMessage(`背景地図を「${BACKGROUND_SOURCES[activeBasemapId].name}」へ切り替えました。`, "info");
@@ -179,6 +195,184 @@ function bindUiEvents() {
       els.geojsonFile.click();
     }
   });
+}
+
+async function searchPlaceByName() {
+  const query = els.placeSearchInput.value.trim();
+
+  clearPlaceSearchResults();
+
+  if (!query) {
+    setPlaceSearchStatus("検索したい地名や住所を入力してください。");
+    return;
+  }
+
+  els.placeSearchButton.disabled = true;
+  setPlaceSearchStatus("検索しています...");
+
+  try {
+    const results = await fetchPlaceCandidates(query);
+
+    if (results.length === 0) {
+      setPlaceSearchStatus("候補が見つかりませんでした。地名を少し詳しくして再検索してください。");
+      return;
+    }
+
+    renderPlaceSearchResults(results);
+
+    if (results.length === 1) {
+      setPlaceSearchStatus("1件見つかりました。候補を選択すると地図へ移動します。");
+    } else {
+      setPlaceSearchStatus(`${results.length}件見つかりました。候補から選択してください。`);
+    }
+  } catch (error) {
+    setPlaceSearchStatus(`検索に失敗しました。通信状態を確認してください。${error.message}`);
+  } finally {
+    els.placeSearchButton.disabled = false;
+  }
+}
+
+async function fetchPlaceCandidates(query) {
+  const searches = await Promise.allSettled([fetchGsiPlaceCandidates(query), fetchOsmPlaceCandidates(query)]);
+  const candidates = searches.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+  const uniqueCandidates = [];
+  const seen = new Set();
+
+  candidates.forEach((candidate) => {
+    const key = `${candidate.title}-${candidate.lng.toFixed(5)}-${candidate.lat.toFixed(5)}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueCandidates.push(candidate);
+    }
+  });
+
+  return uniqueCandidates.slice(0, 10);
+}
+
+async function fetchGsiPlaceCandidates(query) {
+  const endpoint = `https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(query)}`;
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const features = await response.json();
+
+  if (!Array.isArray(features)) {
+    return [];
+  }
+
+  return features
+    .map((feature, index) => {
+      const coordinates = feature?.geometry?.coordinates;
+      const title = feature?.properties?.title || query;
+
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        return null;
+      }
+
+      return {
+        id: `place-${index}`,
+        title,
+        source: "国土地理院",
+        lng: Number(coordinates[0]),
+        lat: Number(coordinates[1]),
+      };
+    })
+    .filter((candidate) => candidate && Number.isFinite(candidate.lng) && Number.isFinite(candidate.lat));
+}
+
+async function fetchOsmPlaceCandidates(query) {
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    q: query,
+    limit: "10",
+    countrycodes: "jp",
+    "accept-language": "ja",
+  });
+  const endpoint = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const results = await response.json();
+
+  if (!Array.isArray(results)) {
+    return [];
+  }
+
+  return results
+    .map((result, index) => {
+      const title = result.display_name || result.name || query;
+      const lng = Number(result.lon);
+      const lat = Number(result.lat);
+
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        return null;
+      }
+
+      return {
+        id: `osm-place-${index}`,
+        title,
+        source: "OpenStreetMap",
+        lng,
+        lat,
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderPlaceSearchResults(results) {
+  els.placeSearchResults.innerHTML = "";
+
+  results.forEach((candidate) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "search-result-button";
+
+    const title = document.createElement("span");
+    title.className = "search-result-title";
+    title.textContent = candidate.title;
+
+    const detail = document.createElement("span");
+    detail.className = "search-result-detail";
+    detail.textContent = `${candidate.source} / 緯度 ${candidate.lat.toFixed(6)} / 経度 ${candidate.lng.toFixed(6)}`;
+
+    button.append(title, detail);
+    button.addEventListener("click", () => {
+      selectPlaceCandidate(candidate);
+    });
+
+    els.placeSearchResults.appendChild(button);
+  });
+}
+
+function selectPlaceCandidate(candidate) {
+  map.flyTo({
+    center: [candidate.lng, candidate.lat],
+    zoom: Math.max(map.getZoom(), 15),
+    duration: 900,
+  });
+
+  if (!placeSearchMarker) {
+    placeSearchMarker = new maplibregl.Marker({ color: "#dc2626" });
+  }
+
+  placeSearchMarker.setLngLat([candidate.lng, candidate.lat]).addTo(map);
+  setPlaceSearchStatus(`「${candidate.title}」へ移動しました。`);
+  updateShareUrl(false);
+}
+
+function clearPlaceSearchResults() {
+  els.placeSearchResults.innerHTML = "";
+}
+
+function setPlaceSearchStatus(text) {
+  els.placeSearchStatus.textContent = text;
 }
 
 function addRasterLayerFromForm() {
