@@ -233,11 +233,19 @@ async function searchPlaceByName() {
 }
 
 async function fetchPlaceCandidates(query) {
-  const searches = await Promise.allSettled([fetchOsmPlaceCandidates(query), fetchGsiPlaceCandidates(query)]);
-  const osmCandidates = searches[0].status === "fulfilled" ? searches[0].value : [];
-  const gsiCandidates = searches[1].status === "fulfilled" ? searches[1].value : [];
+  const searches = await Promise.allSettled([
+    fetchWikipediaPlaceCandidates(query),
+    fetchOsmPlaceCandidates(query),
+    fetchGsiPlaceCandidates(query),
+  ]);
+  const wikipediaCandidates = searches[0].status === "fulfilled" ? searches[0].value : [];
+  const osmCandidates = searches[1].status === "fulfilled" ? searches[1].value : [];
+  const gsiCandidates = searches[2].status === "fulfilled" ? searches[2].value : [];
   const relevantGsiCandidates = filterRelevantGsiCandidates(query, gsiCandidates);
-  const candidates = osmCandidates.length > 0 ? [...osmCandidates, ...relevantGsiCandidates] : gsiCandidates;
+  const candidates =
+    wikipediaCandidates.length > 0 || osmCandidates.length > 0
+      ? [...wikipediaCandidates, ...osmCandidates, ...relevantGsiCandidates]
+      : gsiCandidates;
   const uniqueCandidates = [];
   const seen = new Set();
 
@@ -251,6 +259,53 @@ async function fetchPlaceCandidates(query) {
   });
 
   return uniqueCandidates.slice(0, 10);
+}
+
+async function fetchWikipediaPlaceCandidates(query) {
+  const params = new URLSearchParams({
+    action: "query",
+    format: "json",
+    origin: "*",
+    generator: "search",
+    gsrsearch: query,
+    gsrlimit: "10",
+    prop: "coordinates",
+    colimit: "10",
+  });
+  const endpoint = `https://ja.wikipedia.org/w/api.php?${params.toString()}`;
+  const response = await fetch(endpoint);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const pages = Object.values(data?.query?.pages || {});
+
+  return pages
+    .map((page, index) => {
+      const coordinate = page.coordinates?.[0];
+
+      if (!coordinate) {
+        return null;
+      }
+
+      const lng = Number(coordinate.lon);
+      const lat = Number(coordinate.lat);
+
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        return null;
+      }
+
+      return {
+        id: `wikipedia-place-${index}`,
+        title: page.title || query,
+        source: "Wikipedia",
+        lng,
+        lat,
+      };
+    })
+    .filter(Boolean);
 }
 
 function filterRelevantGsiCandidates(query, candidates) {
