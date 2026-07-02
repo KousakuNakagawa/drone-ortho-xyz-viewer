@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drone Ortho XYZ Viewer</title>
+
+    <!-- MapLibre GL JS: APIキー不要で使えるWeb地図ライブラリ -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="地図操作パネル">
+        <header class="app-header">
+          <p class="eyebrow">ODM / OAM workflow</p>
+          <h1>Drone Ortho XYZ Viewer</h1>
+          <p class="lead">XYZタイルURLを貼るだけの軽量オルソ画像ビューア</p>
+        </header>
+
+        <section class="panel-section" aria-labelledby="basemap-title">
+          <h2 id="basemap-title">背景地図</h2>
+          <label class="field-label" for="basemap-select">表示する背景</label>
+          <select id="basemap-select">
+            <option value="gsi-standard">地理院標準地図</option>
+            <option value="gsi-photo">地理院航空写真</option>
+            <option value="osm">OpenStreetMap</option>
+          </select>
+        </section>
+
+        <section class="panel-section" aria-labelledby="xyz-title">
+          <h2 id="xyz-title">XYZタイル読込</h2>
+          <label class="field-label" for="xyz-name">レイヤー名</label>
+          <input id="xyz-name" type="text" placeholder="例: OAM オルソ画像" />
+
+          <label class="field-label" for="xyz-url">XYZタイルURL</label>
+          <textarea
+            id="xyz-url"
+            rows="4"
+            spellcheck="false"
+            placeholder="https://example.com/{z}/{x}/{y}.png"
+          ></textarea>
+
+          <button id="add-xyz-button" class="primary-button" type="button">
+            読み込み
+          </button>
+
+          <div id="message" class="message" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="panel-section" aria-labelledby="layers-title">
+          <div class="section-heading-row">
+            <h2 id="layers-title">レイヤー一覧</h2>
+            <span id="layer-count" class="count-badge">0</span>
+          </div>
+          <div id="layer-list" class="layer-list">
+            <p class="empty-text">まだレイヤーはありません。</p>
+          </div>
+        </section>
+
+        <section class="panel-section" aria-labelledby="geojson-title">
+          <h2 id="geojson-title">GeoJSON追加</h2>
+          <div id="drop-zone" class="drop-zone" tabindex="0">
+            GeoJSONファイルをここへドラッグ&ドロップ
+          </div>
+          <input id="geojson-file" class="visually-hidden" type="file" accept=".geojson,.json,application/geo+json,application/json" />
+          <button id="choose-geojson-button" class="secondary-button" type="button">
+            ファイルを選択
+          </button>
+        </section>
+
+        <section class="panel-section" aria-labelledby="share-title">
+          <h2 id="share-title">URL共有</h2>
+          <button id="share-button" class="secondary-button" type="button">
+            現在の状態をURLへ保存
+          </button>
+          <input id="share-url" type="text" readonly aria-label="共有URL" />
+        </section>
+      </aside>
+
+      <section class="map-area" aria-label="地図">
+        <div id="map"></div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
