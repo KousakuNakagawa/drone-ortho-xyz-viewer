@@ -233,8 +233,11 @@ async function searchPlaceByName() {
 }
 
 async function fetchPlaceCandidates(query) {
-  const searches = await Promise.allSettled([fetchGsiPlaceCandidates(query), fetchOsmPlaceCandidates(query)]);
-  const candidates = searches.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+  const searches = await Promise.allSettled([fetchOsmPlaceCandidates(query), fetchGsiPlaceCandidates(query)]);
+  const osmCandidates = searches[0].status === "fulfilled" ? searches[0].value : [];
+  const gsiCandidates = searches[1].status === "fulfilled" ? searches[1].value : [];
+  const relevantGsiCandidates = filterRelevantGsiCandidates(query, gsiCandidates);
+  const candidates = osmCandidates.length > 0 ? [...osmCandidates, ...relevantGsiCandidates] : gsiCandidates;
   const uniqueCandidates = [];
   const seen = new Set();
 
@@ -248,6 +251,20 @@ async function fetchPlaceCandidates(query) {
   });
 
   return uniqueCandidates.slice(0, 10);
+}
+
+function filterRelevantGsiCandidates(query, candidates) {
+  const normalizedQuery = normalizeSearchText(query);
+  const filtered = candidates.filter((candidate) => {
+    const normalizedTitle = normalizeSearchText(candidate.title);
+    return normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle);
+  });
+
+  return filtered.slice(0, 5);
+}
+
+function normalizeSearchText(value) {
+  return value.replace(/\s+/g, "").toLowerCase();
 }
 
 async function fetchGsiPlaceCandidates(query) {
